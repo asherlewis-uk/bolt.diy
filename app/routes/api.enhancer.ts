@@ -3,6 +3,7 @@ import { streamText } from '~/lib/.server/llm/stream-text';
 import { stripIndents } from '~/utils/stripIndent';
 import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
+import { getServerEnv } from '~/lib/server-env';
 import { createScopedLogger } from '~/utils/logger';
 
 export async function action(args: ActionFunctionArgs) {
@@ -12,6 +13,7 @@ export async function action(args: ActionFunctionArgs) {
 const logger = createScopedLogger('api.enhancher');
 
 async function enhancerAction({ context, request }: ActionFunctionArgs) {
+  const serverEnv = getServerEnv(context);
   const { message, model, provider } = await request.json<{
     message: string;
     model: string;
@@ -41,7 +43,7 @@ async function enhancerAction({ context, request }: ActionFunctionArgs) {
   const providerSettings = getProviderSettingsFromCookie(cookieHeader);
 
   try {
-    const result = await streamText({
+      const result = await streamText({
       messages: [
         {
           role: 'user',
@@ -77,9 +79,9 @@ async function enhancerAction({ context, request }: ActionFunctionArgs) {
           `,
         },
       ],
-      env: context.cloudflare?.env as any,
-      apiKeys,
-      providerSettings,
+        env: serverEnv as Env,
+        apiKeys,
+        providerSettings,
       options: {
         system:
           'You are a senior software principal architect, you should help the user analyse the user query and enrich it with the necessary context and constraints to make it more specific, actionable, and effective. You should also ensure that the prompt is self-contained and uses professional language. Your response should ONLY contain the enhanced prompt text. Do not include any explanations, metadata, or wrapper tags.',

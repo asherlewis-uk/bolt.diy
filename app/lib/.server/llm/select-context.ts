@@ -1,5 +1,6 @@
 import { generateText, type CoreTool, type GenerateTextResult, type Message } from 'ai';
 import ignore from 'ignore';
+import { formatArtifactContextForPrompt, getArtifactPriorityPaths, type ResolvedArtifactContext } from '~/lib/.server/artifact-context';
 import type { IProviderSetting } from '~/types/model';
 import { IGNORE_PATTERNS, type FileMap } from './constants';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROVIDER_LIST } from '~/utils/constants';
@@ -21,9 +22,10 @@ export async function selectContext(props: {
   promptId?: string;
   contextOptimization?: boolean;
   summary: string;
+  artifactContext?: ResolvedArtifactContext;
   onFinish?: (resp: GenerateTextResult<Record<string, CoreTool<any, any>>, never>) => void;
 }) {
-  const { messages, env: serverEnv, apiKeys, files, providerSettings, summary, onFinish } = props;
+  const { messages, env: serverEnv, apiKeys, files, providerSettings, summary, artifactContext, onFinish } = props;
   let currentModel = DEFAULT_MODEL;
   let currentProvider = DEFAULT_PROVIDER.name;
   const processedMessages = messages.map((message) => {
@@ -87,6 +89,8 @@ export async function selectContext(props: {
   let context = '';
   const currrentFiles: string[] = [];
   const contextFiles: FileMap = {};
+  const prioritizedArtifactPaths = artifactContext ? getArtifactPriorityPaths(artifactContext) : [];
+  const prioritizedKnownPaths = prioritizedArtifactPaths.filter((path) => filePaths.includes(`/home/project/${path}`));
 
   if (codeContext?.type === 'codeContext') {
     const codeContextFiles: string[] = codeContext.files;
@@ -135,6 +139,11 @@ export async function selectContext(props: {
         ${context}
         ---
 
+        CURRENT PROJECT ARTIFACTS
+        ---
+        ${artifactContext ? formatArtifactContextForPrompt(artifactContext) : 'No structured project artifacts were available.'}
+        ---
+
         Now, you are given a task. You need to select the files that are relevant to the task from the list of files above.
 
         RESPONSE FORMAT:
@@ -150,6 +159,7 @@ export async function selectContext(props: {
         * You should not include any other text in the response.
         * You should not include any file that is not in the list of files above.
         * You should not include any file that is already in the context buffer.
+        * Prioritize files that appear in the structured project artifacts when they are relevant to the user request.
         * If no changes are needed, you can leave the response empty updateContextBuffer tag.
         `,
     prompt: `
@@ -159,10 +169,14 @@ export async function selectContext(props: {
 
         update the context buffer with the files that are relevant to the task from the list of files above.
 
+        PRIORITY ARTIFACT FILES:
+        ${prioritizedKnownPaths.length > 0 ? prioritizedKnownPaths.map((path) => `- ${path.replace('/home/project/', '')}`).join('\n') : '- None'}
+
         CRITICAL RULES:
         * Only include relevant files in the context buffer.
         * context buffer should not include any file that is not in the list of files above.
         * context buffer is extremlly expensive, so only include files that are absolutely necessary.
+        * Modified files and the selected workbench file are strong signals and should be preferred when they are relevant.
         * If no changes are needed, you can leave the response empty updateContextBuffer tag.
         * Only 5 files can be placed in the context buffer at a time.
         * if the buffer is full, you need to exclude files that is not needed and include files that is relevent.
@@ -215,6 +229,20 @@ export async function selectContext(props: {
     }
 
     filteredFiles[path] = files[fullPath];
+  });
+
+  prioritizedKnownPaths.forEach((fullPath) => {
+    const relativePath = fullPath.replace('/home/project/', '');
+
+    if (currrentFiles.includes(relativePath) || filteredFiles[relativePath]) {
+      return;
+    }
+
+    if (!files[fullPath] || files[fullPath]?.type !== 'file') {
+      return;
+    }
+
+    filteredFiles[relativePath] = files[fullPath];
   });
 
   if (onFinish) {

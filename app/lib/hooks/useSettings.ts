@@ -3,6 +3,7 @@ import {
   isDebugMode,
   isEventLogsEnabled,
   promptStore,
+  operatorModeStore,
   providersStore,
   latestBranchStore,
   autoSelectStarterTemplate,
@@ -15,12 +16,14 @@ import {
   updateAutoSelectTemplate,
   updateContextOptimization,
   updateEventLogs,
+  updateOperatorMode as updateOperatorModeStore,
   updatePromptId,
 } from '~/lib/stores/settings';
 import { useCallback, useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
 import type { IProviderSetting, ProviderInfo, IProviderConfig } from '~/types/model';
 import type { TabWindowConfig, TabVisibilityConfig } from '~/components/@settings/core/types';
+import type { OperatorMode } from '~/lib/common/operator-mode';
 import { logStore } from '~/lib/stores/logs';
 import { getLocalStorage, setLocalStorage } from '~/lib/persistence';
 
@@ -53,6 +56,8 @@ export interface UseSettingsReturn {
   eventLogs: boolean;
   promptId: string;
   setPromptId: (promptId: string) => void;
+  operatorMode: OperatorMode;
+  setOperatorMode: (mode: OperatorMode) => void;
   isLatestBranch: boolean;
   enableLatestBranch: (enabled: boolean) => void;
   autoSelectTemplate: boolean;
@@ -76,6 +81,7 @@ export function useSettings(): UseSettingsReturn {
   const debug = useStore(isDebugMode);
   const eventLogs = useStore(isEventLogsEnabled);
   const promptId = useStore(promptStore);
+  const operatorMode = useStore(operatorModeStore);
   const isLatestBranch = useStore(latestBranchStore);
   const autoSelectTemplate = useStore(autoSelectStarterTemplate);
   const [activeProviders, setActiveProviders] = useState<ProviderInfo[]>([]);
@@ -128,6 +134,11 @@ export function useSettings(): UseSettingsReturn {
   const setPromptId = useCallback((id: string) => {
     updatePromptId(id);
     logStore.logSystem(`Prompt template updated to ${id}`);
+  }, []);
+
+  const setOperatorMode = useCallback((mode: OperatorMode) => {
+    updateOperatorModeStore(mode);
+    logStore.logSystem(`Operator mode updated to ${mode}`);
   }, []);
 
   const enableLatestBranch = useCallback((enabled: boolean) => {
@@ -193,6 +204,8 @@ export function useSettings(): UseSettingsReturn {
     setEventLogs,
     promptId,
     setPromptId,
+    operatorMode,
+    setOperatorMode,
     isLatestBranch,
     enableLatestBranch,
     autoSelectTemplate,

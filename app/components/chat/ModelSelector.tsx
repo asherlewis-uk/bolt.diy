@@ -216,12 +216,12 @@ export const ModelSelector = ({
   }
 
   return (
-    <div className="flex gap-2 flex-col sm:flex-row">
+    <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
       {/* Provider Combobox */}
-      <div className="relative flex w-full" onKeyDown={handleProviderKeyDown} ref={providerDropdownRef}>
+      <div className="relative flex w-full min-w-0" onKeyDown={handleProviderKeyDown} ref={providerDropdownRef}>
         <div
           className={classNames(
-            'w-full p-2 rounded-lg border border-bolt-elements-borderColor',
+            'w-full min-w-0 p-2 rounded-lg border border-bolt-elements-borderColor',
             'bg-bolt-elements-prompt-background text-bolt-elements-textPrimary',
             'focus-within:outline-none focus-within:ring-2 focus-within:ring-bolt-elements-focus',
             'transition-all cursor-pointer',
@@ -240,11 +240,11 @@ export const ModelSelector = ({
           aria-haspopup="listbox"
           tabIndex={0}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex min-w-0 items-center justify-between gap-2">
             <div className="truncate">{provider?.name || 'Select provider'}</div>
             <div
               className={classNames(
-                'i-ph:caret-down w-4 h-4 text-bolt-elements-textSecondary opacity-75',
+                'i-ph:caret-down h-4 w-4 shrink-0 text-bolt-elements-textSecondary opacity-75',
                 isProviderDropdownOpen ? 'rotate-180' : undefined,
               )}
             />
@@ -253,7 +253,7 @@ export const ModelSelector = ({
 
         {isProviderDropdownOpen && (
           <div
-            className="absolute z-20 w-full mt-1 py-1 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 shadow-lg"
+            className="absolute z-20 mt-1 w-full max-w-full overflow-hidden rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 py-1 shadow-lg"
             role="listbox"
             id="provider-listbox"
           >
@@ -266,7 +266,7 @@ export const ModelSelector = ({
                   onChange={(e) => setProviderSearchQuery(e.target.value)}
                   placeholder="Search providers..."
                   className={classNames(
-                    'w-full pl-2 py-1.5 rounded-md text-sm',
+                    'w-full py-1.5 pl-8 pr-3 rounded-md text-sm',
                     'bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor',
                     'text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary',
                     'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
@@ -284,7 +284,7 @@ export const ModelSelector = ({
 
             <div
               className={classNames(
-                'max-h-60 overflow-y-auto',
+                'max-h-[min(16rem,45vh)] overflow-x-hidden overflow-y-auto',
                 'sm:scrollbar-none',
                 '[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2',
                 '[&::-webkit-scrollbar-thumb]:bg-bolt-elements-borderColor',
@@ -308,7 +308,7 @@ export const ModelSelector = ({
                     role="option"
                     aria-selected={provider?.name === providerOption.name}
                     className={classNames(
-                      'px-3 py-2 text-sm cursor-pointer',
+                      'mobile-wrap-anywhere px-3 py-2 text-sm cursor-pointer',
                       'hover:bg-bolt-elements-background-depth-3',
                       'text-bolt-elements-textPrimary',
                       'outline-none',
@@ -345,10 +345,10 @@ export const ModelSelector = ({
       </div>
 
       {/* Model Combobox */}
-      <div className="relative flex w-full min-w-[70%]" onKeyDown={handleModelKeyDown} ref={modelDropdownRef}>
+      <div className="relative flex w-full min-w-0 flex-1" onKeyDown={handleModelKeyDown} ref={modelDropdownRef}>
         <div
           className={classNames(
-            'w-full p-2 rounded-lg border border-bolt-elements-borderColor',
+            'w-full min-w-0 p-2 rounded-lg border border-bolt-elements-borderColor',
             'bg-bolt-elements-prompt-background text-bolt-elements-textPrimary',
             'focus-within:outline-none focus-within:ring-2 focus-within:ring-bolt-elements-focus',
             'transition-all cursor-pointer',
@@ -367,11 +367,11 @@ export const ModelSelector = ({
           aria-haspopup="listbox"
           tabIndex={0}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex min-w-0 items-center justify-between gap-2">
             <div className="truncate">{modelList.find((m) => m.name === model)?.label || 'Select model'}</div>
             <div
               className={classNames(
-                'i-ph:caret-down w-4 h-4 text-bolt-elements-textSecondary opacity-75',
+                'i-ph:caret-down h-4 w-4 shrink-0 text-bolt-elements-textSecondary opacity-75',
                 isModelDropdownOpen ? 'rotate-180' : undefined,
               )}
             />
@@ -380,7 +380,7 @@ export const ModelSelector = ({
 
         {isModelDropdownOpen && (
           <div
-            className="absolute z-10 w-full mt-1 py-1 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 shadow-lg"
+            className="absolute z-10 mt-1 w-full max-w-full overflow-hidden rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 py-1 shadow-lg"
             role="listbox"
             id="model-listbox"
           >
@@ -393,7 +393,7 @@ export const ModelSelector = ({
                   onChange={(e) => setModelSearchQuery(e.target.value)}
                   placeholder="Search models..."
                   className={classNames(
-                    'w-full pl-2 py-1.5 rounded-md text-sm',
+                    'w-full py-1.5 pl-8 pr-3 rounded-md text-sm',
                     'bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor',
                     'text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary',
                     'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
@@ -411,7 +411,7 @@ export const ModelSelector = ({
 
             <div
               className={classNames(
-                'max-h-60 overflow-y-auto',
+                'max-h-[min(16rem,45vh)] overflow-x-hidden overflow-y-auto',
                 'sm:scrollbar-none',
                 '[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2',
                 '[&::-webkit-scrollbar-thumb]:bg-bolt-elements-borderColor',
@@ -437,7 +437,7 @@ export const ModelSelector = ({
                     role="option"
                     aria-selected={model === modelOption.name}
                     className={classNames(
-                      'px-3 py-2 text-sm cursor-pointer',
+                      'mobile-wrap-anywhere px-3 py-2 text-sm cursor-pointer',
                       'hover:bg-bolt-elements-background-depth-3',
                       'text-bolt-elements-textPrimary',
                       'outline-none',

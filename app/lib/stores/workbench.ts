@@ -20,6 +20,7 @@ import { createSampler } from '~/utils/sampler';
 import type { ActionAlert, DeployAlert, SupabaseAlert } from '~/types/actions';
 
 const { saveAs } = fileSaver;
+const ACTION_STREAM_SAMPLE_INTERVAL_MS = 100;
 
 export interface ArtifactState {
   id: string;
@@ -454,7 +455,9 @@ export class WorkbenchStore {
   }
 
   abortAllActions() {
-    // TODO: what do we wanna do and how do we wanna recover from this?
+    for (const artifactId of this.artifactIdList) {
+      this.#getArtifact(artifactId)?.runner.abortActiveActions();
+    }
   }
 
   setReloadedMessages(messages: string[]) {
@@ -549,7 +552,7 @@ export class WorkbenchStore {
 
     const action = artifact.runner.actions.get()[data.actionId];
 
-    if (!action || action.executed) {
+    if (!action || action.executed || action.status === 'aborted') {
       return;
     }
 
@@ -594,7 +597,7 @@ export class WorkbenchStore {
 
   actionStreamSampler = createSampler(async (data: ActionCallbackData, isStreaming: boolean = false) => {
     return await this._runAction(data, isStreaming);
-  }, 100); // TODO: remove this magic number to have it configurable
+  }, ACTION_STREAM_SAMPLE_INTERVAL_MS);
 
   #getArtifact(id: string) {
     const artifacts = this.artifacts.get();

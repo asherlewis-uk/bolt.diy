@@ -253,15 +253,28 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   >
                     <span className="flex-1">Start Application</span>
                   </a>
+                ) : type === 'build' ? (
+                  <div className="flex items-center w-full min-h-[28px]">
+                    <span className="flex-1">Run build</span>
+                  </div>
                 ) : null}
               </div>
-              {(type === 'shell' || type === 'start') && (
+              {(type === 'shell' || type === 'start' || type === 'build') && (
                 <ShellCodeBlock
                   classsName={classNames('mt-1', {
                     'mb-3.5': !isLast,
                   })}
                   code={content}
                 />
+              )}
+              {status === 'failed' && 'error' in action && action.error && (
+                <div
+                  className={classNames('mt-1 text-xs text-bolt-elements-icon-error', {
+                    'mb-3.5': !isLast,
+                  })}
+                >
+                  {action.error}
+                </div>
               )}
             </motion.li>
           );

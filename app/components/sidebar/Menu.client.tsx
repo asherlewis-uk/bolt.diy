@@ -19,7 +19,7 @@ const menuVariants = {
   closed: {
     opacity: 0,
     visibility: 'hidden',
-    left: '-340px',
+    x: '-100%',
     transition: {
       duration: 0.2,
       ease: cubicEasingFn,
@@ -28,7 +28,7 @@ const menuVariants = {
   open: {
     opacity: 1,
     visibility: 'initial',
-    left: 0,
+    x: 0,
     transition: {
       duration: 0.2,
       ease: cubicEasingFn,
@@ -68,6 +68,7 @@ export const Menu = () => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<ChatHistoryItem[]>([]);
   const [open, setOpen] = useState(false);
+  const [supportsHoverSidebar, setSupportsHoverSidebar] = useState<boolean | null>(null);
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const profile = useStore(profileStore);
@@ -279,6 +280,44 @@ export const Menu = () => {
   }, [open, selectionMode]);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      setSupportsHoverSidebar(false);
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(min-width: 1024px) and (hover: hover) and (pointer: fine)');
+    const updateSidebarMode = (matches: boolean) => {
+      setSupportsHoverSidebar(matches);
+
+      if (!matches) {
+        setOpen(false);
+      }
+    };
+
+    updateSidebarMode(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent) => updateSidebarMode(event.matches);
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+    }
+
+    return () => {
+      if (typeof mediaQuery.removeEventListener === 'function') {
+        mediaQuery.removeEventListener('change', handleChange);
+      } else {
+        mediaQuery.removeListener(handleChange);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!supportsHoverSidebar) {
+      return;
+    }
+
     const enterThreshold = 40;
     const exitThreshold = 40;
 
@@ -301,7 +340,7 @@ export const Menu = () => {
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
     };
-  }, [isSettingsOpen]);
+  }, [isSettingsOpen, supportsHoverSidebar]);
 
   const handleDuplicate = async (id: string) => {
     await duplicateCurrentChat(id);
@@ -324,22 +363,53 @@ export const Menu = () => {
 
   return (
     <>
+      {supportsHoverSidebar === false && !open && !isSettingsOpen && (
+        <button
+          type="button"
+          aria-label="Open sidebar"
+          className="fixed left-3 z-[55] flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-700 shadow-lg backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 dark:text-gray-200 lg:hidden"
+          style={{ top: 'calc(var(--header-height) + env(safe-area-inset-top, 0px) + 0.75rem)' }}
+          onClick={() => setOpen(true)}
+        >
+          <div className="i-ph:list text-lg" />
+        </button>
+      )}
+
+      {supportsHoverSidebar === false && open && !isSettingsOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-[54] bg-black/40 backdrop-blur-[1px] lg:hidden"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
       <motion.div
         ref={menuRef}
         initial="closed"
         animate={open ? 'open' : 'closed'}
         variants={menuVariants}
-        style={{ width: '340px' }}
         className={classNames(
-          'flex selection-accent flex-col side-menu fixed top-0 h-full',
+          'mobile-safe-scroll side-menu fixed inset-y-0 left-0 flex w-[min(340px,calc(100vw-0.75rem))] max-w-[calc(100vw-0.75rem)] selection-accent flex-col overflow-hidden rounded-r-2xl lg:w-[340px] lg:max-w-[340px] lg:rounded-none',
           'bg-white dark:bg-gray-950 border-r border-gray-100 dark:border-gray-800/50',
           'shadow-sm text-sm',
-          isSettingsOpen ? 'z-40' : 'z-sidebar',
+          isSettingsOpen ? 'z-40' : supportsHoverSidebar === false ? 'z-[55]' : 'z-sidebar',
         )}
       >
-        <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-900/50">
-          <div className="text-gray-900 dark:text-white font-medium"></div>
-          <div className="flex items-center gap-3">
+        <div className="flex h-12 items-center justify-between gap-2 border-b border-gray-100 bg-gray-50/50 px-4 dark:border-gray-800/50 dark:bg-gray-900/50">
+          <div className="flex items-center gap-2 text-gray-900 dark:text-white font-medium">
+            {supportsHoverSidebar === false && (
+              <button
+                type="button"
+                aria-label="Close sidebar"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white lg:hidden"
+                onClick={() => setOpen(false)}
+              >
+                <div className="i-ph:x text-base" />
+              </button>
+            )}
+          </div>
+          <div className="flex min-w-0 items-center gap-3">
             <span className="font-medium text-sm text-gray-900 dark:text-white truncate">
               {profile?.username || 'Guest User'}
             </span>
@@ -361,7 +431,7 @@ export const Menu = () => {
         <CurrentDateTime />
         <div className="flex-1 flex flex-col h-full w-full overflow-hidden">
           <div className="p-4 space-y-3">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <a
                 href="/"
                 className="flex-1 flex gap-2 items-center bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-lg px-4 py-2 transition-colors"
@@ -395,10 +465,10 @@ export const Menu = () => {
               />
             </div>
           </div>
-          <div className="flex items-center justify-between text-sm px-4 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm">
             <div className="font-medium text-gray-600 dark:text-gray-400">Your Chats</div>
             {selectionMode && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={selectAll}>
                   {selectedItems.length === filteredList.length ? 'Deselect all' : 'Select all'}
                 </Button>
@@ -413,7 +483,7 @@ export const Menu = () => {
               </div>
             )}
           </div>
-          <div className="flex-1 overflow-auto px-3 pb-3">
+          <div className="mobile-safe-scroll flex-1 overflow-auto px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
             {filteredList.length === 0 && (
               <div className="px-4 text-gray-500 dark:text-gray-400 text-sm">
                 {list.length === 0 ? 'No previous conversations' : 'No matches found'}
@@ -524,7 +594,7 @@ export const Menu = () => {
               </Dialog>
             </DialogRoot>
           </div>
-          <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-800 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-800">
             <SettingsButton onClick={handleSettingsClick} />
             <ThemeSwitch />
           </div>

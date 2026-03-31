@@ -1,0 +1,6 @@
+# Final acceptance pass.
+scripts/allowed-files-current-pass.txt
+scripts/current-pass-baseline.txt
+app/routes/api.check-env-key.ts
+app/lib/api/check-env-key-route.spec.ts
+phase-report.md

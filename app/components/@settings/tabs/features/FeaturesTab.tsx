@@ -5,6 +5,7 @@ import { Switch } from '~/components/ui/Switch';
 import { useSettings } from '~/lib/hooks/useSettings';
 import { classNames } from '~/utils/classNames';
 import { toast } from 'react-toastify';
+import { getOperatorModeDefinition, listOperatorModes } from '~/lib/common/operator-mode';
 import { PromptLibrary } from '~/lib/common/prompt-library';
 
 interface FeatureToggle {
@@ -117,6 +118,8 @@ export default function FeaturesTab() {
     setEventLogs,
     setPromptId,
     promptId,
+    operatorMode,
+    setOperatorMode,
   } = useSettings();
 
   // Enable features by default on first load
@@ -285,6 +288,66 @@ export default function FeaturesTab() {
             {PromptLibrary.getList().map((x) => (
               <option key={x.id} value={x.id}>
                 {x.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </motion.div>
+
+      <motion.div
+        layout
+        className={classNames(
+          'bg-bolt-elements-background-depth-2',
+          'hover:bg-bolt-elements-background-depth-3',
+          'transition-all duration-200',
+          'rounded-lg p-4',
+          'group',
+        )}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className={classNames(
+              'p-2 rounded-lg text-xl',
+              'bg-bolt-elements-background-depth-3 group-hover:bg-bolt-elements-background-depth-4',
+              'transition-colors duration-200',
+              'text-purple-500',
+            )}
+          >
+            <div className="i-ph:arrows-clockwise" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-medium text-bolt-elements-textPrimary group-hover:text-purple-500 transition-colors">
+              Operator Mode
+            </h4>
+            <p className="text-xs text-bolt-elements-textSecondary mt-0.5">
+              Choose how the orchestrator loads repo context and evaluates the work for each request
+            </p>
+            <p className="text-xs text-bolt-elements-textTertiary mt-1">
+              {getOperatorModeDefinition(operatorMode).runtimeBehavior}
+            </p>
+          </div>
+          <select
+            value={operatorMode}
+            onChange={(e) => {
+              const nextMode = e.target.value;
+              setOperatorMode(nextMode as typeof operatorMode);
+              toast.success(`${getOperatorModeDefinition(nextMode as typeof operatorMode).label} mode enabled`);
+            }}
+            className={classNames(
+              'p-2 rounded-lg text-sm min-w-[220px]',
+              'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
+              'text-bolt-elements-textPrimary',
+              'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
+              'group-hover:border-purple-500/30',
+              'transition-all duration-200',
+            )}
+          >
+            {listOperatorModes().map((mode) => (
+              <option key={mode.id} value={mode.id}>
+                {mode.label}
               </option>
             ))}
           </select>

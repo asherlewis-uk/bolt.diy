@@ -133,3 +133,26 @@ html[data-theme='dark'] {
   --bolt-elements-editor-search-button-backgroundColor: theme('colors.gray.800');
   --bolt-elements-editor-search-button-backgroundColorHover: theme('colors.alpha.white.10');
 }
+
+@media (max-width: 767px) {
+  .cm-panels {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .cm-search {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-inline-end: 0.5rem;
+  }
+
+  .cm-search > * {
+    min-width: 0;
+  }
+
+  .cm-search input,
+  .cm-search label {
+    max-width: 100%;
+  }
+}

@@ -9,6 +9,7 @@ import {
   getMessages,
   getNextId,
   getUrlId,
+  localChatCacheStorageSurface,
   openDatabase,
   setMessages,
   duplicateChat,
@@ -32,9 +33,9 @@ export interface ChatHistoryItem {
   metadata?: IChatMetadata;
 }
 
-const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
+const localChatCacheEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
 
-export const db = persistenceEnabled ? await openDatabase() : undefined;
+export const db = localChatCacheEnabled ? await openDatabase() : undefined;
 
 export const chatId = atom<string | undefined>(undefined);
 export const description = atom<string | undefined>(undefined);
@@ -53,10 +54,10 @@ export function useChatHistory() {
     if (!db) {
       setReady(true);
 
-      if (persistenceEnabled) {
-        const error = new Error('Chat persistence is unavailable');
-        logStore.logError('Chat persistence initialization failed', error);
-        toast.error('Chat persistence is unavailable');
+      if (localChatCacheEnabled) {
+        const error = new Error(`${localChatCacheStorageSurface.label} is unavailable`);
+        logStore.logError('Local chat cache initialization failed', error);
+        toast.error(`${localChatCacheStorageSurface.label} is unavailable`);
       }
 
       return;
@@ -211,7 +212,6 @@ ${value.content}
         summary: chatSummary,
       };
 
-      // localStorage.setItem(`snapshot:${id}`, JSON.stringify(snapshot)); // Remove localStorage usage
       try {
         await setSnapshot(db, id, snapshot);
       } catch (error) {
@@ -223,7 +223,6 @@ ${value.content}
   );
 
   const restoreSnapshot = useCallback(async (id: string, snapshot?: Snapshot) => {
-    // const snapshotStr = localStorage.getItem(`snapshot:${id}`); // Remove localStorage usage
     const container = await webcontainer;
 
     const validSnapshot = snapshot || { chatIndex: '', files: {} };
@@ -399,10 +398,9 @@ ${value.content}
 }
 
 function navigateChat(nextId: string) {
-  /**
-   * FIXME: Using the intended navigate function causes a rerender for <Chat /> that breaks the app.
-   *
-   * `navigate(`/chat/${nextId}`, { replace: true });`
+  /*
+   * Updating the URL directly avoids the rerender that currently breaks <Chat />
+   * when the standard Remix navigation path is used here.
    */
   const url = new URL(window.location.href);
   url.pathname = `/chat/${nextId}`;

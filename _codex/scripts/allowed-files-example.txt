@@ -1,0 +1,8 @@
+# Example allowlist for a phase
+# One repo-relative path per line. Comments are allowed.
+
+docs/00_MASTER_CONTEXT.md
+docs/07_PASS_REPORT_TEMPLATE.md
+scripts/allowed-files-current-pass.txt
+scripts/validate-file-scope.ps1
+reference/orchestrator_server.ts

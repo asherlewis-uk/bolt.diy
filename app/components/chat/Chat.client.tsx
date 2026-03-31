@@ -12,7 +12,7 @@ import { useMessageParser, usePromptEnhancer, useShortcuts } from '~/lib/hooks';
 import { description, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
+import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST, WORK_DIR } from '~/utils/constants';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
@@ -25,8 +25,8 @@ import { createSampler } from '~/utils/sampler';
 import { getTemplates, selectStarterTemplate } from '~/utils/selectStarterTemplate';
 import { logStore } from '~/lib/stores/logs';
 import { streamingState } from '~/lib/stores/streaming';
-import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
+import type { ArtifactContextRequestPayload } from '~/types/context';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -34,6 +34,92 @@ const toastAnimation = cssTransition({
 });
 
 const logger = createScopedLogger('Chat');
+
+type ChatFilesPayload = Record<
+  string,
+  | {
+      type: 'file' | 'folder';
+      content?: string;
+      isBinary?: boolean;
+    }
+  | undefined
+>;
+
+function normalizeProjectPath(filePath?: string) {
+  if (!filePath) {
+    return undefined;
+  }
+
+  let normalizedPath = filePath.replace(/\\/g, '/');
+
+  if (normalizedPath.startsWith(WORK_DIR)) {
+    normalizedPath = normalizedPath.slice(WORK_DIR.length);
+  }
+
+  if (normalizedPath.startsWith('/')) {
+    normalizedPath = normalizedPath.slice(1);
+  }
+
+  return normalizedPath || undefined;
+}
+
+function createArtifactContextPayload(
+  files: ChatFilesPayload,
+  selectedFile?: string,
+): ArtifactContextRequestPayload {
+  const fileModifications = workbenchStore.getFileModifcations();
+  const modifiedFiles = fileModifications
+    ? Object.entries(fileModifications)
+        .filter(([filePath]) => files[filePath]?.type === 'file' && !files[filePath]?.isBinary)
+        .map(([filePath, modification]) => ({
+          path: normalizeProjectPath(filePath) || filePath,
+          kind: modification.type,
+          content: modification.content,
+        }))
+        .sort((left, right) => left.path.localeCompare(right.path))
+    : [];
+
+  const artifacts = workbenchStore.artifactIdList
+    .map((messageId) => {
+      const artifact = workbenchStore.artifacts.get()[messageId];
+
+      if (!artifact) {
+        return undefined;
+      }
+
+      const actions = Object.values(artifact.runner.actions.get());
+      const filePaths = [
+        ...new Set(
+          actions.flatMap((action) => {
+            if (action.type !== 'file') {
+              return [];
+            }
+
+            const filePath = 'filePath' in action && typeof action.filePath === 'string' ? action.filePath : undefined;
+            const normalizedPath = normalizeProjectPath(filePath);
+
+            return normalizedPath ? [normalizedPath] : [];
+          }),
+        ),
+      ].sort((left, right) => left.localeCompare(right));
+
+      return {
+        id: artifact.id,
+        title: artifact.title,
+        type: artifact.type,
+        actionCount: actions.length,
+        pendingActionCount: actions.filter((action) => action.status !== 'complete' && action.status !== 'aborted').length,
+        filePaths,
+      };
+    })
+    .filter((artifact): artifact is NonNullable<typeof artifact> => !!artifact);
+
+  return {
+    selectedFile: normalizeProjectPath(selectedFile),
+    modifiedFiles,
+    artifacts,
+  };
+}
 
 export function Chat() {
   renderLogger.trace('Chat');
@@ -64,9 +150,6 @@ export function Chat() {
           );
         }}
         icon={({ type }) => {
-          /**
-           * @todo Handle more types if we need them. This may require extra color palettes.
-           */
           switch (type) {
             case 'success': {
               return <div className="i-ph:check-bold text-bolt-elements-icon-success text-2xl" />;
@@ -124,14 +207,12 @@ export const ChatImpl = memo(
     const [searchParams, setSearchParams] = useSearchParams();
     const [fakeLoading, setFakeLoading] = useState(false);
     const files = useStore(workbenchStore.files);
+    const selectedWorkbenchFile = useStore(workbenchStore.selectedFile);
     const actionAlert = useStore(workbenchStore.alert);
     const deployAlert = useStore(workbenchStore.deployAlert);
     const supabaseConn = useStore(supabaseConnection); // Add this line to get Supabase connection
-    const selectedProject = supabaseConn.stats?.projects?.find(
-      (project) => project.id === supabaseConn.selectedProjectId,
-    );
     const supabaseAlert = useStore(workbenchStore.supabaseAlert);
-    const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
+    const { activeProviders, promptId, operatorMode, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
@@ -147,6 +228,36 @@ export const ChatImpl = memo(
     const [animationScope, animate] = useAnimate();
 
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+    const createChatRequestBody = useCallback(() => {
+      return {
+        apiKeys,
+        files,
+        artifactContext: createArtifactContextPayload(files as ChatFilesPayload, selectedWorkbenchFile),
+        promptId,
+        operatorMode,
+        contextOptimization: contextOptimizationEnabled,
+        supabase: {
+          isConnected: supabaseConn.isConnected,
+          hasSelectedProject: !!supabaseConn.selectedProjectId,
+          selectedProjectId: supabaseConn.selectedProjectId,
+          credentials: {
+            supabaseUrl: supabaseConn?.credentials?.supabaseUrl,
+            anonKey: supabaseConn?.credentials?.anonKey,
+          },
+        },
+      };
+    }, [
+      apiKeys,
+      contextOptimizationEnabled,
+      files,
+      operatorMode,
+      promptId,
+      selectedWorkbenchFile,
+      supabaseConn?.credentials?.anonKey,
+      supabaseConn?.credentials?.supabaseUrl,
+      supabaseConn.isConnected,
+      supabaseConn.selectedProjectId,
+    ]);
 
     const {
       messages,
@@ -163,20 +274,7 @@ export const ChatImpl = memo(
       setData,
     } = useChat({
       api: '/api/chat',
-      body: {
-        apiKeys,
-        files,
-        promptId,
-        contextOptimization: contextOptimizationEnabled,
-        supabase: {
-          isConnected: supabaseConn.isConnected,
-          hasSelectedProject: !!selectedProject,
-          credentials: {
-            supabaseUrl: supabaseConn?.credentials?.supabaseUrl,
-            anonKey: supabaseConn?.credentials?.anonKey,
-          },
-        },
-      },
+      body: createChatRequestBody(),
       sendExtraMessageFields: true,
       onError: (e) => {
         logger.error('Request failed\n\n', e, error);
@@ -216,19 +314,23 @@ export const ChatImpl = memo(
       // console.log(prompt, searchParams, model, provider);
 
       if (prompt) {
+        const requestBody = createChatRequestBody();
         setSearchParams({});
         runAnimation();
-        append({
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${prompt}`,
-            },
-          ] as any, // Type assertion to bypass compiler check
-        });
+        append(
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${prompt}`,
+              },
+            ] as any, // Type assertion to bypass compiler check
+          },
+          { body: requestBody },
+        );
       }
-    }, [model, provider, searchParams]);
+    }, [append, createChatRequestBody, model, provider, searchParams, setSearchParams]);
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
     const { parsedMessages, parseMessages } = useMessageParser();
@@ -314,6 +416,8 @@ export const ChatImpl = memo(
       const finalMessageContent = messageContent;
 
       runAnimation();
+      const requestBody = createChatRequestBody();
+      const hasArtifactChanges = (requestBody.artifactContext?.modifiedFiles?.length || 0) > 0;
 
       if (!chatStarted) {
         setFakeLoading(true);
@@ -365,7 +469,7 @@ export const ChatImpl = memo(
                   annotations: ['hidden'],
                 },
               ]);
-              reload();
+              reload({ body: requestBody });
               setInput('');
               Cookies.remove(PROMPT_COOKIE_KEY);
 
@@ -375,6 +479,9 @@ export const ChatImpl = memo(
               resetEnhancer();
 
               textareaRef.current?.blur();
+              if (hasArtifactChanges) {
+                workbenchStore.resetAllFileModifications();
+              }
               setFakeLoading(false);
 
               return;
@@ -399,7 +506,7 @@ export const ChatImpl = memo(
             ] as any,
           },
         ]);
-        reload();
+        reload({ body: requestBody });
         setFakeLoading(false);
         setInput('');
         Cookies.remove(PROMPT_COOKIE_KEY);
@@ -410,6 +517,9 @@ export const ChatImpl = memo(
         resetEnhancer();
 
         textareaRef.current?.blur();
+        if (hasArtifactChanges) {
+          workbenchStore.resetAllFileModifications();
+        }
 
         return;
       }
@@ -418,29 +528,10 @@ export const ChatImpl = memo(
         setMessages(messages.slice(0, -1));
       }
 
-      const modifiedFiles = workbenchStore.getModifiedFiles();
-
       chatStore.setKey('aborted', false);
 
-      if (modifiedFiles !== undefined) {
-        const userUpdateArtifact = filesToArtifacts(modifiedFiles, `${Date.now()}`);
-        append({
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userUpdateArtifact}${finalMessageContent}`,
-            },
-            ...imageDataList.map((imageData) => ({
-              type: 'image',
-              image: imageData,
-            })),
-          ] as any,
-        });
-
-        workbenchStore.resetAllFileModifications();
-      } else {
-        append({
+      append(
+        {
           role: 'user',
           content: [
             {
@@ -452,7 +543,12 @@ export const ChatImpl = memo(
               image: imageData,
             })),
           ] as any,
-        });
+        },
+        { body: requestBody },
+      );
+
+      if (hasArtifactChanges) {
+        workbenchStore.resetAllFileModifications();
       }
 
       setInput('');

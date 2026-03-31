@@ -1,4 +1,9 @@
+const MOBILE_BREAKPOINT = 640;
+
 export function isMobile() {
-  // we use sm: as the breakpoint for mobile. It's currently set to 640px
-  return globalThis.innerWidth < 640;
+  if (typeof globalThis === 'undefined' || typeof globalThis.innerWidth !== 'number') {
+    return false;
+  }
+
+  return globalThis.innerWidth < MOBILE_BREAKPOINT;
 }

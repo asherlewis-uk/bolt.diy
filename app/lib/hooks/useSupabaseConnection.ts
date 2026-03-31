@@ -38,6 +38,22 @@ export function useSupabaseConnection() {
     }
   }, []);
 
+  useEffect(() => {
+    const syncSupabaseSession = async () => {
+      await fetch('/api/supabase/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: connection.user && connection.token ? connection.token : '',
+        }),
+      });
+    };
+
+    syncSupabaseSession().catch(console.error);
+  }, [connection.user, connection.token]);
+
   const handleConnect = async () => {
     isConnecting.set(true);
 

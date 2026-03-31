@@ -1,20 +1,22 @@
-import type { LoaderFunction } from '@remix-run/cloudflare';
+import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { getApiKeysFromCookie } from '~/lib/api/cookies';
+import { getServerEnv } from '~/lib/server-env';
 
-export const loader: LoaderFunction = async ({ context, request }) => {
+export const loader = async ({ context, request }: LoaderFunctionArgs) => {
+  const serverEnv = getServerEnv(context);
   const url = new URL(request.url);
   const provider = url.searchParams.get('provider');
 
   if (!provider) {
-    return Response.json({ isSet: false });
+    return json({ isSet: false });
   }
 
-  const llmManager = LLMManager.getInstance(context?.cloudflare?.env as any);
+  const llmManager = LLMManager.getInstance(serverEnv);
   const providerInstance = llmManager.getProvider(provider);
 
   if (!providerInstance || !providerInstance.config.apiTokenKey) {
-    return Response.json({ isSet: false });
+    return json({ isSet: false });
   }
 
   const envVarName = providerInstance.config.apiTokenKey;
@@ -32,10 +34,9 @@ export const loader: LoaderFunction = async ({ context, request }) => {
    */
   const isSet = !!(
     apiKeys?.[provider] ||
-    (context?.cloudflare?.env as Record<string, any>)?.[envVarName] ||
-    process.env[envVarName] ||
+    serverEnv[envVarName] ||
     llmManager.env[envVarName]
   );
 
-  return Response.json({ isSet });
+  return json({ isSet });
 };

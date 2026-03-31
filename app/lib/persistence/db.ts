@@ -2,6 +2,12 @@ import type { Message } from 'ai';
 import { createScopedLogger } from '~/utils/logger';
 import type { ChatHistoryItem } from './useChatHistory';
 import type { Snapshot } from './types'; // Import Snapshot type
+import {
+  LOCAL_CHAT_CACHE_DATABASE_NAME,
+  LOCAL_CHAT_CACHE_DATABASE_VERSION,
+  LOCAL_CHAT_CACHE_STORES,
+  getStorageSurfaceDefinition,
+} from './storage-policy';
 
 export interface IChatMetadata {
   gitUrl: string;
@@ -10,32 +16,33 @@ export interface IChatMetadata {
 }
 
 const logger = createScopedLogger('ChatHistory');
+export const localChatCacheStorageSurface = getStorageSurfaceDefinition('browserIndexedDbChatCache');
 
 // this is used at the top level and never rejects
 export async function openDatabase(): Promise<IDBDatabase | undefined> {
   if (typeof indexedDB === 'undefined') {
-    console.error('indexedDB is not available in this environment.');
+    console.error(`${localChatCacheStorageSurface.label} is not available in this environment.`);
     return undefined;
   }
 
   return new Promise((resolve) => {
-    const request = indexedDB.open('boltHistory', 2);
+    const request = indexedDB.open(LOCAL_CHAT_CACHE_DATABASE_NAME, LOCAL_CHAT_CACHE_DATABASE_VERSION);
 
     request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
       const db = (event.target as IDBOpenDBRequest).result;
       const oldVersion = event.oldVersion;
 
       if (oldVersion < 1) {
-        if (!db.objectStoreNames.contains('chats')) {
-          const store = db.createObjectStore('chats', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains(LOCAL_CHAT_CACHE_STORES.chats)) {
+          const store = db.createObjectStore(LOCAL_CHAT_CACHE_STORES.chats, { keyPath: 'id' });
           store.createIndex('id', 'id', { unique: true });
           store.createIndex('urlId', 'urlId', { unique: true });
         }
       }
 
       if (oldVersion < 2) {
-        if (!db.objectStoreNames.contains('snapshots')) {
-          db.createObjectStore('snapshots', { keyPath: 'chatId' });
+        if (!db.objectStoreNames.contains(LOCAL_CHAT_CACHE_STORES.snapshots)) {
+          db.createObjectStore(LOCAL_CHAT_CACHE_STORES.snapshots, { keyPath: 'chatId' });
         }
       }
     };
@@ -53,8 +60,8 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
 
 export async function getAll(db: IDBDatabase): Promise<ChatHistoryItem[]> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readonly');
-    const store = transaction.objectStore('chats');
+    const transaction = db.transaction(LOCAL_CHAT_CACHE_STORES.chats, 'readonly');
+    const store = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.chats);
     const request = store.getAll();
 
     request.onsuccess = () => resolve(request.result as ChatHistoryItem[]);
@@ -72,8 +79,8 @@ export async function setMessages(
   metadata?: IChatMetadata,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readwrite');
-    const store = transaction.objectStore('chats');
+    const transaction = db.transaction(LOCAL_CHAT_CACHE_STORES.chats, 'readwrite');
+    const store = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.chats);
 
     if (timestamp && isNaN(Date.parse(timestamp))) {
       reject(new Error('Invalid timestamp'));
@@ -100,8 +107,8 @@ export async function getMessages(db: IDBDatabase, id: string): Promise<ChatHist
 
 export async function getMessagesByUrlId(db: IDBDatabase, id: string): Promise<ChatHistoryItem> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readonly');
-    const store = transaction.objectStore('chats');
+    const transaction = db.transaction(LOCAL_CHAT_CACHE_STORES.chats, 'readonly');
+    const store = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.chats);
     const index = store.index('urlId');
     const request = index.get(id);
 
@@ -112,8 +119,8 @@ export async function getMessagesByUrlId(db: IDBDatabase, id: string): Promise<C
 
 export async function getMessagesById(db: IDBDatabase, id: string): Promise<ChatHistoryItem> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readonly');
-    const store = transaction.objectStore('chats');
+    const transaction = db.transaction(LOCAL_CHAT_CACHE_STORES.chats, 'readonly');
+    const store = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.chats);
     const request = store.get(id);
 
     request.onsuccess = () => resolve(request.result as ChatHistoryItem);
@@ -123,9 +130,12 @@ export async function getMessagesById(db: IDBDatabase, id: string): Promise<Chat
 
 export async function deleteById(db: IDBDatabase, id: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(['chats', 'snapshots'], 'readwrite'); // Add snapshots store to transaction
-    const chatStore = transaction.objectStore('chats');
-    const snapshotStore = transaction.objectStore('snapshots');
+    const transaction = db.transaction(
+      [LOCAL_CHAT_CACHE_STORES.chats, LOCAL_CHAT_CACHE_STORES.snapshots],
+      'readwrite',
+    );
+    const chatStore = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.chats);
+    const snapshotStore = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.snapshots);
 
     const deleteChatRequest = chatStore.delete(id);
     const deleteSnapshotRequest = snapshotStore.delete(id); // Also delete snapshot
@@ -168,8 +178,8 @@ export async function deleteById(db: IDBDatabase, id: string): Promise<void> {
 
 export async function getNextId(db: IDBDatabase): Promise<string> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readonly');
-    const store = transaction.objectStore('chats');
+    const transaction = db.transaction(LOCAL_CHAT_CACHE_STORES.chats, 'readonly');
+    const store = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.chats);
     const request = store.getAllKeys();
 
     request.onsuccess = () => {
@@ -199,8 +209,8 @@ export async function getUrlId(db: IDBDatabase, id: string): Promise<string> {
 
 async function getUrlIds(db: IDBDatabase): Promise<string[]> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readonly');
-    const store = transaction.objectStore('chats');
+    const transaction = db.transaction(LOCAL_CHAT_CACHE_STORES.chats, 'readonly');
+    const store = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.chats);
     const idList: string[] = [];
 
     const request = store.openCursor();
@@ -304,8 +314,8 @@ export async function updateChatMetadata(
 
 export async function getSnapshot(db: IDBDatabase, chatId: string): Promise<Snapshot | undefined> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('snapshots', 'readonly');
-    const store = transaction.objectStore('snapshots');
+    const transaction = db.transaction(LOCAL_CHAT_CACHE_STORES.snapshots, 'readonly');
+    const store = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.snapshots);
     const request = store.get(chatId);
 
     request.onsuccess = () => resolve(request.result?.snapshot as Snapshot | undefined);
@@ -315,8 +325,8 @@ export async function getSnapshot(db: IDBDatabase, chatId: string): Promise<Snap
 
 export async function setSnapshot(db: IDBDatabase, chatId: string, snapshot: Snapshot): Promise<void> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('snapshots', 'readwrite');
-    const store = transaction.objectStore('snapshots');
+    const transaction = db.transaction(LOCAL_CHAT_CACHE_STORES.snapshots, 'readwrite');
+    const store = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.snapshots);
     const request = store.put({ chatId, snapshot });
 
     request.onsuccess = () => resolve();
@@ -326,8 +336,8 @@ export async function setSnapshot(db: IDBDatabase, chatId: string, snapshot: Sna
 
 export async function deleteSnapshot(db: IDBDatabase, chatId: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('snapshots', 'readwrite');
-    const store = transaction.objectStore('snapshots');
+    const transaction = db.transaction(LOCAL_CHAT_CACHE_STORES.snapshots, 'readwrite');
+    const store = transaction.objectStore(LOCAL_CHAT_CACHE_STORES.snapshots);
     const request = store.delete(chatId);
 
     request.onsuccess = () => resolve();

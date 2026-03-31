@@ -221,9 +221,14 @@
  */
 :root {
   --header-height: 54px;
-  --chat-max-width: 35rem;
-  --chat-min-width: 575px;
-  --workbench-width: min(calc(100% - var(--chat-min-width)), 2536px);
+  --layout-inline-padding: clamp(0.75rem, 2vw, 1.5rem);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --chat-sticky-offset: max(0.5rem, var(--safe-area-bottom));
+  --workbench-top-offset: clamp(0.75rem, 3vw, 1.5rem);
+  --workbench-bottom-offset: max(0.75rem, var(--safe-area-bottom));
+  --chat-max-width: min(35rem, 100%);
+  --chat-min-width: min(575px, calc(100vw - (var(--layout-inline-padding) * 2)));
+  --workbench-width: max(0px, min(calc(100% - var(--chat-min-width)), 2536px));
   --workbench-inner-width: var(--workbench-width);
   --workbench-left: calc(100% - var(--workbench-width));
 
@@ -252,4 +257,13 @@
   --bolt-elements-terminal-color-brightMagenta: var(--bolt-terminal-brightMagenta);
   --bolt-elements-terminal-color-brightCyan: var(--bolt-terminal-brightCyan);
   --bolt-elements-terminal-color-brightWhite: var(--bolt-terminal-brightWhite);
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --chat-min-width: 100%;
+    --workbench-width: 100%;
+    --workbench-inner-width: 100%;
+    --workbench-left: 0;
+  }
 }

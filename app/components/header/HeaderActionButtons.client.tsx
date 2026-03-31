@@ -68,16 +68,18 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   };
 
   return (
-    <div className="flex">
-      <div className="relative" ref={dropdownRef}>
-        <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden mr-2 text-sm">
+    <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+      <div className="relative min-w-0" ref={dropdownRef}>
+        <div className="flex max-w-full min-w-0 overflow-hidden rounded-md border border-bolt-elements-borderColor text-sm">
           <Button
             active
             disabled={isDeploying || !activePreview || isStreaming}
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="px-4 hover:bg-bolt-elements-item-backgroundActive flex items-center gap-2"
+            className="flex max-w-full items-center gap-2 px-3 sm:px-4 hover:bg-bolt-elements-item-backgroundActive"
           >
-            {isDeploying ? `Deploying to ${deployingTo}...` : 'Deploy'}
+            <span className="max-w-[9rem] truncate sm:max-w-none">
+              {isDeploying ? `Deploying to ${deployingTo}...` : 'Deploy'}
+            </span>
             <div
               className={classNames('i-ph:caret-down w-4 h-4 transition-transform', isDropdownOpen ? 'rotate-180' : '')}
             />
@@ -85,7 +87,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
         </div>
 
         {isDropdownOpen && (
-          <div className="absolute right-2 flex flex-col gap-1 z-50 p-1 mt-1 min-w-[13.5rem] bg-bolt-elements-background-depth-2 rounded-md shadow-lg bg-bolt-elements-backgroundDefault border border-bolt-elements-borderColor">
+          <div className="absolute right-0 z-50 mt-1 flex min-w-[13.5rem] max-w-[calc(100vw-1rem)] flex-col gap-1 rounded-md border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 bg-bolt-elements-backgroundDefault p-1 shadow-lg">
             <Button
               active
               onClick={() => {
@@ -93,7 +95,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 setIsDropdownOpen(false);
               }}
               disabled={isDeploying || !activePreview || !netlifyConn.user}
-              className="flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative"
+              className="relative flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm text-bolt-elements-textPrimary group hover:bg-bolt-elements-item-backgroundActive"
             >
               <img
                 className="w-5 h-5"
@@ -102,7 +104,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 crossOrigin="anonymous"
                 src="https://cdn.simpleicons.org/netlify"
               />
-              <span className="mx-auto">
+              <span className="mx-auto min-w-0 whitespace-normal break-words text-center">
                 {!netlifyConn.user ? 'No Netlify Account Connected' : 'Deploy to Netlify'}
               </span>
               {netlifyConn.user && <NetlifyDeploymentLink />}
@@ -114,7 +116,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 setIsDropdownOpen(false);
               }}
               disabled={isDeploying || !activePreview || !vercelConn.user}
-              className="flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative"
+              className="relative flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm text-bolt-elements-textPrimary group hover:bg-bolt-elements-item-backgroundActive"
             >
               <img
                 className="w-5 h-5 bg-black p-1 rounded"
@@ -124,13 +126,15 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 src="https://cdn.simpleicons.org/vercel/white"
                 alt="vercel"
               />
-              <span className="mx-auto">{!vercelConn.user ? 'No Vercel Account Connected' : 'Deploy to Vercel'}</span>
+              <span className="mx-auto min-w-0 whitespace-normal break-words text-center">
+                {!vercelConn.user ? 'No Vercel Account Connected' : 'Deploy to Vercel'}
+              </span>
               {vercelConn.user && <VercelDeploymentLink />}
             </Button>
             <Button
               active={false}
               disabled
-              className="flex items-center w-full rounded-md px-4 py-2 text-sm text-bolt-elements-textTertiary gap-2"
+              className="flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm text-bolt-elements-textTertiary"
             >
               <span className="sr-only">Coming Soon</span>
               <img
@@ -141,12 +145,14 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 src="https://cdn.simpleicons.org/cloudflare"
                 alt="cloudflare"
               />
-              <span className="mx-auto">Deploy to Cloudflare (Coming Soon)</span>
+              <span className="mx-auto min-w-0 whitespace-normal break-words text-center">
+                Deploy to Cloudflare (Coming Soon)
+              </span>
             </Button>
           </div>
         )}
       </div>
-      <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden">
+      <div className="flex shrink-0 overflow-hidden rounded-md border border-bolt-elements-borderColor">
         <Button
           active={showChat}
           disabled={!canHideChat || isSmallViewport} // expand button is disabled on mobile as it's not needed
@@ -188,7 +194,7 @@ function Button({ active = false, disabled = false, children, onClick, className
   return (
     <button
       className={classNames(
-        'flex items-center p-1.5',
+        'flex min-w-0 items-center justify-center p-1.5',
         {
           'bg-bolt-elements-item-backgroundDefault hover:bg-bolt-elements-item-backgroundActive text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary':
             !active,

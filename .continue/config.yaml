@@ -1,0 +1,10 @@
+name: Local Audit Orchestrator
+version: 0.0.1
+schema: v1
+
+models:
+  - name: Audit Orchestrator
+    provider: openai
+    model: audit-orchestrator
+    apiBase: http://127.0.0.1:8787/v1
+    apiKey: dummy

@@ -143,7 +143,7 @@ const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchP
       <div className="flex items-center gap-2">
         <label
           htmlFor={id}
-          className="text-sm text-gray-500 dark:text-gray-400 select-none cursor-pointer whitespace-nowrap w-[88px]"
+          className="mobile-wrap-anywhere min-w-0 text-xs text-gray-500 dark:text-gray-400 select-none cursor-pointer sm:text-sm"
         >
           {label}
         </label>
@@ -413,7 +413,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
   return (
     <RadixDialog.Root open={open}>
       <RadixDialog.Portal>
-        <div className="fixed inset-0 flex items-center justify-center z-[100] modern-scrollbar">
+        <div className="modern-scrollbar fixed inset-0 z-[100] flex items-end justify-center overflow-hidden sm:items-center sm:p-4">
           <RadixDialog.Overlay asChild>
             <motion.div
               className="absolute inset-0 bg-black/70 dark:bg-black/80 backdrop-blur-sm"
@@ -428,15 +428,14 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
             aria-describedby={undefined}
             onEscapeKeyDown={handleClose}
             onPointerDownOutside={handleClose}
-            className="relative z-[101]"
+            className="relative z-[101] h-full w-full sm:h-auto sm:w-auto"
           >
             <motion.div
               className={classNames(
-                'w-[1200px] h-[90vh]',
+                'control-panel-shell flex h-[100dvh] w-full flex-col overflow-hidden rounded-none sm:h-[90vh] sm:max-h-[900px] sm:w-[min(1200px,calc(100vw-2rem))] sm:rounded-2xl',
                 'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
-                'rounded-2xl shadow-2xl',
+                'shadow-2xl',
                 'border border-[#E5E5E5] dark:border-[#1A1A1A]',
-                'flex flex-col overflow-hidden',
                 'relative',
               )}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -444,13 +443,13 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="absolute inset-0 overflow-hidden rounded-2xl">
+              <div className="absolute inset-0 overflow-hidden rounded-none sm:rounded-2xl">
                 <BackgroundRays />
               </div>
-              <div className="relative z-10 flex flex-col h-full">
+              <div className="relative z-10 flex h-full min-h-0 flex-col">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center space-x-4">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-6 sm:py-4">
+                  <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
                     {(activeTab || showTabManagement) && (
                       <button
                         onClick={handleBack}
@@ -459,14 +458,14 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                         <div className="i-ph:arrow-left w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-purple-500 transition-colors" />
                       </button>
                     )}
-                    <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
+                    <DialogTitle className="mobile-wrap-anywhere min-w-0 text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">
                       {showTabManagement ? 'Tab Management' : activeTab ? TAB_LABELS[activeTab] : 'Control Panel'}
                     </DialogTitle>
                   </div>
 
-                  <div className="flex items-center gap-6">
+                  <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-3 sm:w-auto sm:flex-nowrap sm:gap-6">
                     {/* Mode Toggle */}
-                    <div className="flex items-center gap-2 min-w-[140px] border-r border-gray-200 dark:border-gray-800 pr-6">
+                    <div className="flex min-w-0 items-center gap-2 sm:min-w-[140px] sm:border-r sm:border-gray-200 sm:pr-6 sm:dark:border-gray-800">
                       <AnimatedSwitch
                         id="developer-mode"
                         checked={developerMode}
@@ -476,7 +475,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                     </div>
 
                     {/* Avatar and Dropdown */}
-                    <div className="border-l border-gray-200 dark:border-gray-800 pl-6">
+                    <div className="min-w-0 sm:border-l sm:border-gray-200 sm:pl-6 sm:dark:border-gray-800">
                       <AvatarDropdown onSelectTab={handleTabClick} />
                     </div>
 
@@ -493,7 +492,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                 {/* Content */}
                 <div
                   className={classNames(
-                    'flex-1',
+                    'mobile-safe-scroll flex-1 min-h-0',
                     'overflow-y-auto',
                     'hover:overflow-y-auto',
                     'scrollbar scrollbar-w-2',
@@ -510,7 +509,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="p-6"
+                    className="p-4 sm:p-6"
                   >
                     {showTabManagement ? (
                       <TabManagement />

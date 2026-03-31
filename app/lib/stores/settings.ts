@@ -8,6 +8,7 @@ import type {
   DevTabConfig,
 } from '~/components/@settings/core/types';
 import { DEFAULT_TAB_CONFIG } from '~/components/@settings/core/constants';
+import { DEFAULT_OPERATOR_MODE, resolveOperatorMode, type OperatorMode } from '~/lib/common/operator-mode';
 import Cookies from 'js-cookie';
 import { toggleTheme } from './theme';
 import { create } from 'zustand';
@@ -131,6 +132,7 @@ const SETTINGS_KEYS = {
   EVENT_LOGS: 'isEventLogsEnabled',
   PROMPT_ID: 'promptId',
   DEVELOPER_MODE: 'isDeveloperMode',
+  OPERATOR_MODE: 'operatorMode',
 } as const;
 
 // Initialize settings from localStorage or defaults
@@ -160,6 +162,7 @@ const getInitialSettings = () => {
     eventLogs: getStoredBoolean(SETTINGS_KEYS.EVENT_LOGS, true),
     promptId: isBrowser ? localStorage.getItem(SETTINGS_KEYS.PROMPT_ID) || 'default' : 'default',
     developerMode: getStoredBoolean(SETTINGS_KEYS.DEVELOPER_MODE, false),
+    operatorMode: isBrowser ? resolveOperatorMode(localStorage.getItem(SETTINGS_KEYS.OPERATOR_MODE)) : DEFAULT_OPERATOR_MODE,
   };
 };
 
@@ -171,6 +174,7 @@ export const autoSelectStarterTemplate = atom<boolean>(initialSettings.autoSelec
 export const enableContextOptimizationStore = atom<boolean>(initialSettings.contextOptimization);
 export const isEventLogsEnabled = atom<boolean>(initialSettings.eventLogs);
 export const promptStore = atom<string>(initialSettings.promptId);
+export const operatorModeStore = atom<OperatorMode>(initialSettings.operatorMode);
 
 // Helper functions to update settings with persistence
 export const updateLatestBranch = (enabled: boolean) => {
@@ -196,6 +200,12 @@ export const updateEventLogs = (enabled: boolean) => {
 export const updatePromptId = (id: string) => {
   promptStore.set(id);
   localStorage.setItem(SETTINGS_KEYS.PROMPT_ID, id);
+};
+
+export const updateOperatorMode = (mode: OperatorMode) => {
+  const resolvedMode = resolveOperatorMode(mode);
+  operatorModeStore.set(resolvedMode);
+  localStorage.setItem(SETTINGS_KEYS.OPERATOR_MODE, resolvedMode);
 };
 
 // Initialize tab configuration from localStorage or defaults

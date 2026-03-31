@@ -1,8 +1,17 @@
 import type { WebContainer } from '@webcontainer/api';
 import { path as nodePath } from '~/utils/path';
 import { atom, map, type MapStore } from 'nanostores';
-import type { ActionAlert, BoltAction, DeployAlert, FileHistory, SupabaseAction, SupabaseAlert } from '~/types/actions';
+import type {
+  ActionAlert,
+  BoltAction,
+  CommandExecutionPolicy,
+  DeployAlert,
+  FileHistory,
+  SupabaseAction,
+  SupabaseAlert,
+} from '~/types/actions';
 import { createScopedLogger } from '~/utils/logger';
+import { evaluateActionExecutionPolicy, getActionCommand, getCommandActionType } from '~/utils/shell';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
@@ -100,9 +109,27 @@ export class ActionRunner {
     }
 
     const abortController = new AbortController();
+    const hydratedAction = this.#hydrateActionWithPolicy(data.action);
+    const executionPolicy = hydratedAction.executionPolicy;
+
+    if (executionPolicy?.verdict === 'reject') {
+      this.actions.setKey(actionId, {
+        ...hydratedAction,
+        status: 'failed',
+        executed: true,
+        error: executionPolicy.reason || 'Command blocked by execution policy.',
+        abort: () => {
+          abortController.abort();
+        },
+        abortSignal: abortController.signal,
+      });
+
+      this.#emitPolicyAlert(executionPolicy);
+      return;
+    }
 
     this.actions.setKey(actionId, {
-      ...data.action,
+      ...hydratedAction,
       status: 'pending',
       executed: false,
       abort: () => {
@@ -113,6 +140,12 @@ export class ActionRunner {
     });
 
     this.#currentExecutionPromise.then(() => {
+      const queuedAction = this.actions.get()[actionId];
+
+      if (!queuedAction || queuedAction.abortSignal.aborted || queuedAction.status === 'aborted' || queuedAction.executed) {
+        return;
+      }
+
       this.#updateAction(actionId, { status: 'running' });
     });
   }
@@ -125,7 +158,7 @@ export class ActionRunner {
       unreachable(`Action ${actionId} not found`);
     }
 
-    if (action.executed) {
+    if (action.executed || action.abortSignal.aborted || action.status === 'aborted') {
       return; // No return value here
     }
 
@@ -150,6 +183,21 @@ export class ActionRunner {
 
   async #executeAction(actionId: string, isStreaming: boolean = false) {
     const action = this.actions.get()[actionId];
+    const executionPolicy = this.#getActionExecutionPolicy(action);
+
+    if (action.abortSignal.aborted || action.status === 'aborted') {
+      this.#updateAction(actionId, { status: 'aborted' });
+      return;
+    }
+
+    if (executionPolicy?.verdict === 'reject') {
+      this.#updateAction(actionId, {
+        status: 'failed',
+        error: executionPolicy.reason || 'Command blocked by execution policy.',
+      });
+      this.#emitPolicyAlert(executionPolicy);
+      return;
+    }
 
     this.#updateAction(actionId, { status: 'running' });
 
@@ -202,12 +250,7 @@ export class ActionRunner {
                 return;
               }
 
-              this.onAlert?.({
-                type: 'error',
-                title: 'Dev Server Failed',
-                description: err.header,
-                content: err.output,
-              });
+              this.onAlert?.(this.#createTerminalFailureAlert(action.type, err));
             });
 
           /*
@@ -235,12 +278,9 @@ export class ActionRunner {
         return;
       }
 
-      this.onAlert?.({
-        type: 'error',
-        title: 'Dev Server Failed',
-        description: error.header,
-        content: error.output,
-      });
+      if (action.type !== 'build') {
+        this.onAlert?.(this.#createTerminalFailureAlert(action.type, error));
+      }
 
       // re-throw the error to be caught in the promise chain
       throw error;
@@ -259,7 +299,8 @@ export class ActionRunner {
       unreachable('Shell terminal not found');
     }
 
-    const resp = await shell.executeCommand(this.runnerId.get(), action.content, () => {
+    const command = action.executionPolicy?.normalizedCommand || getActionCommand(action);
+    const resp = await shell.executeCommand(this.runnerId.get(), command, () => {
       logger.debug(`[${action.type}]:Aborting Action\n\n`, action);
       action.abort();
     });
@@ -286,7 +327,8 @@ export class ActionRunner {
       unreachable('Shell terminal not found');
     }
 
-    const resp = await shell.executeCommand(this.runnerId.get(), action.content, () => {
+    const command = action.executionPolicy?.normalizedCommand || getActionCommand(action);
+    const resp = await shell.executeCommand(this.runnerId.get(), command, () => {
       logger.debug(`[${action.type}]:Aborting Action\n\n`, action);
       action.abort();
     });
@@ -383,7 +425,9 @@ export class ActionRunner {
     const webcontainer = await this.#webcontainer;
 
     // Create a new terminal specifically for the build
-    const buildProcess = await webcontainer.spawn('npm', ['run', 'build']);
+    const buildCommand = action.executionPolicy?.normalizedCommand || getActionCommand(action);
+    const buildArgs = buildCommand.split(' ').filter(Boolean).slice(1);
+    const buildProcess = await webcontainer.spawn('npm', buildArgs);
 
     let output = '';
     buildProcess.output.pipeTo(
@@ -551,5 +595,57 @@ export class ActionRunner {
       deployStatus: deployStatus as any,
       source: details?.source || 'netlify',
     });
+  }
+
+  abortActiveActions() {
+    for (const [actionId, action] of Object.entries(this.actions.get())) {
+      if (action.status === 'complete' || action.status === 'failed' || action.status === 'aborted') {
+        continue;
+      }
+
+      action.abort();
+      this.#updateAction(actionId, { status: 'aborted' });
+    }
+  }
+
+  #hydrateActionWithPolicy(action: BoltAction) {
+    const commandActionType = getCommandActionType(action);
+
+    if (!commandActionType) {
+      return action;
+    }
+
+    return {
+      ...action,
+      executionPolicy: action.executionPolicy ?? evaluateActionExecutionPolicy(action),
+    };
+  }
+
+  #getActionExecutionPolicy(action: ActionState | BoltAction) {
+    const hydratedAction = this.#hydrateActionWithPolicy(action);
+    return hydratedAction.executionPolicy;
+  }
+
+  #emitPolicyAlert(executionPolicy: CommandExecutionPolicy) {
+    this.onAlert?.({
+      type: 'error',
+      title: 'Command Blocked',
+      description: executionPolicy.reason || 'Command blocked by execution policy.',
+      content: executionPolicy.command,
+      source: 'policy',
+    });
+  }
+
+  #createTerminalFailureAlert(actionType: BoltAction['type'], error: ActionCommandError): ActionAlert {
+    const title =
+      actionType === 'start' ? 'Start Command Failed' : actionType === 'shell' ? 'Command Failed' : 'Action Failed';
+
+    return {
+      type: 'error',
+      title,
+      description: error.header,
+      content: error.output,
+      source: 'terminal',
+    };
   }
 }

@@ -4,6 +4,13 @@ exports[`StreamingMessageParser > valid artifacts with actions > should correctl
 {
   "action": {
     "content": "npm install",
+    "executionPolicy": {
+      "command": "npm install",
+      "commandType": "shell",
+      "matchedRule": "package-install",
+      "normalizedCommand": "npm install",
+      "verdict": "allow",
+    },
     "type": "shell",
   },
   "actionId": "0",
@@ -46,6 +53,13 @@ exports[`StreamingMessageParser > valid artifacts with actions > should correctl
 {
   "action": {
     "content": "npm install",
+    "executionPolicy": {
+      "command": "npm install",
+      "commandType": "shell",
+      "matchedRule": "package-install",
+      "normalizedCommand": "npm install",
+      "verdict": "allow",
+    },
     "type": "shell",
   },
   "actionId": "0",

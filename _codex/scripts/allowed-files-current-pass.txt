@@ -1,0 +1,6 @@
+# Replace this file at the start of every phase.
+# List one repo-relative path per line.
+# This file is consumed by scripts/validate-file-scope.ps1
+
+docs/00_MASTER_CONTEXT.md
+scripts/allowed-files-current-pass.txt

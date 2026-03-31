@@ -12,10 +12,15 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
   const { description, content, source } = alert;
 
   const isPreview = source === 'preview';
-  const title = isPreview ? 'Preview Error' : 'Terminal Error';
-  const message = isPreview
-    ? 'We encountered an error while running the preview. Would you like Bolt to analyze and help resolve this issue?'
-    : 'We encountered an error while running terminal commands. Would you like Bolt to analyze and help resolve this issue?';
+  const isPolicy = source === 'policy';
+  const title = isPolicy ? 'Command Blocked' : isPreview ? 'Preview Error' : 'Terminal Error';
+  const message = isPolicy
+    ? 'Bolt proposed a command that the execution policy rejected. Would you like Bolt to adjust the plan using the blocked command and reason below?'
+    : isPreview
+      ? 'We encountered an error while running the preview. Would you like Bolt to analyze and help resolve this issue?'
+      : 'We encountered an error while running terminal commands. Would you like Bolt to analyze and help resolve this issue?';
+  const promptLabel = isPolicy ? 'blocked command' : isPreview ? 'preview error' : 'terminal error';
+  const promptLanguage = isPreview ? 'js' : 'sh';
 
   return (
     <AnimatePresence>
@@ -71,7 +76,7 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
                 <button
                   onClick={() =>
                     postMessage(
-                      `*Fix this ${isPreview ? 'preview' : 'terminal'} error* \n\`\`\`${isPreview ? 'js' : 'sh'}\n${content}\n\`\`\`\n`,
+                      `*Fix this ${promptLabel}* \n\`\`\`${promptLanguage}\n${content}\n\`\`\`\n${description ? `Reason: ${description}\n` : ''}`,
                     )
                   }
                   className={classNames(

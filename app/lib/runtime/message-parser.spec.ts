@@ -156,6 +156,53 @@ describe('StreamingMessageParser', () => {
       runTest(input, expected);
     });
   });
+
+  it('attaches explicit execution policy metadata to build actions on close', () => {
+    const onActionClose = vi.fn<ActionCallback>();
+    const parser = new StreamingMessageParser({
+      artifactElement: () => '',
+      callbacks: { onActionClose },
+    });
+
+    parser.parse(
+      'message_build',
+      'Before <boltArtifact title="Build" id="artifact_build"><boltAction type="build"></boltAction></boltArtifact> After',
+    );
+
+    expect(onActionClose).toHaveBeenCalledTimes(1);
+    expect(onActionClose.mock.calls[0][0].action).toMatchObject({
+      type: 'build',
+      content: 'npm run build',
+      executionPolicy: {
+        verdict: 'allow',
+        normalizedCommand: 'npm run build',
+        matchedRule: 'build-command',
+      },
+    });
+  });
+
+  it('marks destructive shell commands as rejected before execution', () => {
+    const onActionClose = vi.fn<ActionCallback>();
+    const parser = new StreamingMessageParser({
+      artifactElement: () => '',
+      callbacks: { onActionClose },
+    });
+
+    parser.parse(
+      'message_blocked',
+      'Before <boltArtifact title="Blocked" id="artifact_blocked"><boltAction type="shell">rm -rf dist</boltAction></boltArtifact> After',
+    );
+
+    expect(onActionClose).toHaveBeenCalledTimes(1);
+    expect(onActionClose.mock.calls[0][0].action).toMatchObject({
+      type: 'shell',
+      content: 'rm -rf dist',
+      executionPolicy: {
+        verdict: 'reject',
+        matchedRule: 'filesystem-mutation',
+      },
+    });
+  });
 });
 
 function runTest(input: string | string[], outputOrExpectedResult: string | ExpectedResult) {

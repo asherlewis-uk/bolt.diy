@@ -3,6 +3,7 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
+import { getServerEnv } from '~/lib/server-env';
 
 interface ModelsResponse {
   modelList: ModelInfo[];
@@ -51,7 +52,8 @@ export async function loader({
     };
   };
 }): Promise<Response> {
-  const llmManager = LLMManager.getInstance(context.cloudflare?.env);
+  const serverEnv = getServerEnv(context);
+  const llmManager = LLMManager.getInstance(serverEnv);
 
   // Get client side maintained API keys and provider settings from cookies
   const cookieHeader = request.headers.get('Cookie');
@@ -70,7 +72,7 @@ export async function loader({
       modelList = await llmManager.getModelListFromProvider(provider, {
         apiKeys,
         providerSettings,
-        serverEnv: context.cloudflare?.env,
+        serverEnv,
       });
     }
   } else {
@@ -78,7 +80,7 @@ export async function loader({
     modelList = await llmManager.updateModelList({
       apiKeys,
       providerSettings,
-      serverEnv: context.cloudflare?.env,
+      serverEnv,
     });
   }
 

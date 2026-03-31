@@ -7,6 +7,7 @@ import { MAX_TOKENS } from '~/lib/.server/llm/constants';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
+import { getServerEnv } from '~/lib/server-env';
 import { createScopedLogger } from '~/utils/logger';
 
 export async function action(args: ActionFunctionArgs) {
@@ -18,13 +19,14 @@ async function getModelList(options: {
   providerSettings?: Record<string, IProviderSetting>;
   serverEnv?: Record<string, string>;
 }) {
-  const llmManager = LLMManager.getInstance(import.meta.env);
+  const llmManager = LLMManager.getInstance(options.serverEnv);
   return llmManager.updateModelList(options);
 }
 
 const logger = createScopedLogger('api.llmcall');
 
 async function llmCallAction({ context, request }: ActionFunctionArgs) {
+  const serverEnv = getServerEnv(context);
   const { system, message, model, provider, streamOutput } = await request.json<{
     system: string;
     message: string;
@@ -66,7 +68,7 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
             content: `${message}`,
           },
         ],
-        env: context.cloudflare?.env as any,
+        env: serverEnv as Env,
         apiKeys,
         providerSettings,
       });
@@ -94,7 +96,7 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
     }
   } else {
     try {
-      const models = await getModelList({ apiKeys, providerSettings, serverEnv: context.cloudflare?.env as any });
+      const models = await getModelList({ apiKeys, providerSettings, serverEnv });
       const modelDetails = models.find((m: ModelInfo) => m.name === model);
 
       if (!modelDetails) {
@@ -121,7 +123,7 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
         ],
         model: providerInfo.getModelInstance({
           model: modelDetails.name,
-          serverEnv: context.cloudflare?.env as any,
+          serverEnv,
           apiKeys,
           providerSettings,
         }),

@@ -331,12 +331,17 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const baseChat = (
       <div
         ref={ref}
-        className={classNames(styles.BaseChat, 'relative flex h-full w-full overflow-hidden')}
+        className={classNames(styles.BaseChat, 'relative flex h-full min-h-0 w-full min-w-0 overflow-hidden')}
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
-          <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
+        <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden lg:flex-row">
+          <div
+            className={classNames(
+              styles.Chat,
+              'flex h-full min-h-0 min-w-0 w-full flex-grow flex-col lg:min-w-[var(--chat-min-width)]',
+            )}
+          >
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-chat mx-auto text-center px-4 lg:px-0">
                 <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
@@ -348,8 +353,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               </div>
             )}
             <StickToBottom
-              className={classNames('pt-6 px-2 sm:px-6 relative', {
-                'h-full flex flex-col modern-scrollbar': chatStarted,
+              className={classNames('relative min-h-0 px-2 pt-4 sm:px-6 sm:pt-6', {
+                'flex h-full min-h-0 flex-col modern-scrollbar': chatStarted,
               })}
               resize="smooth"
               initial="smooth"
@@ -359,7 +364,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   {() => {
                     return chatStarted ? (
                       <Messages
-                        className="flex flex-col w-full flex-1 max-w-chat pb-6 mx-auto z-1"
+                        className="z-1 mx-auto flex w-full min-w-0 max-w-chat flex-1 flex-col pb-6"
                         messages={messages}
                         isStreaming={isStreaming}
                       />
@@ -368,9 +373,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 </ClientOnly>
               </StickToBottom.Content>
               <div
-                className={classNames('my-auto flex flex-col gap-2 w-full max-w-chat mx-auto z-prompt mb-6', {
-                  'sticky bottom-2': chatStarted,
+                className={classNames('z-prompt mx-auto my-auto mb-4 flex w-full min-w-0 max-w-chat flex-col gap-2 sm:mb-6', {
+                  sticky: chatStarted,
                 })}
+                style={chatStarted ? { bottom: 'var(--chat-sticky-offset)' } : undefined}
               >
                 <div className="flex flex-col gap-2">
                   {deployAlert && (
@@ -408,7 +414,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
                 <div
                   className={classNames(
-                    'relative bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full max-w-chat mx-auto z-prompt',
+                    'relative z-prompt mx-auto w-full min-w-0 max-w-chat rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-3',
 
                     /*
                      * {
@@ -499,7 +505,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <textarea
                       ref={textareaRef}
                       className={classNames(
-                        'w-full pl-4 pt-4 pr-16 outline-none resize-none text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent text-sm',
+                        'w-full min-w-0 resize-none bg-transparent pl-4 pr-16 pt-4 text-sm text-bolt-elements-textPrimary outline-none placeholder-bolt-elements-textTertiary',
                         'transition-all duration-200',
                         'hover:border-bolt-elements-focus',
                       )}
@@ -585,8 +591,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         />
                       )}
                     </ClientOnly>
-                    <div className="flex justify-between items-center text-sm p-4 pt-2">
-                      <div className="flex gap-1 items-center">
+                    <div className="flex flex-col gap-2 p-4 pt-2 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1">
                         <IconButton title="Upload file" className="transition-all" onClick={() => handleFileUpload()}>
                           <div className="i-ph:paperclip text-xl"></div>
                         </IconButton>
@@ -625,17 +631,23 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           disabled={!providerList || providerList.length === 0}
                         >
                           <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
-                          {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
+                          {isModelSettingsCollapsed ? (
+                            <span className="max-w-[12rem] truncate text-xs">{model}</span>
+                          ) : (
+                            <span />
+                          )}
                         </IconButton>
                       </div>
                       {input.length > 3 ? (
-                        <div className="text-xs text-bolt-elements-textTertiary">
+                        <div className="min-w-0 text-xs leading-relaxed text-bolt-elements-textTertiary sm:ml-auto sm:text-right">
                           Use <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd>{' '}
                           + <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd>{' '}
                           a new line
                         </div>
                       ) : null}
-                      <SupabaseConnection />
+                      <div className="flex min-w-0 items-center gap-2 sm:ml-2 sm:shrink-0">
+                        <SupabaseConnection />
+                      </div>
                       <ExpoQrModal open={qrModalOpen} onClose={() => setQrModalOpen(false)} />
                     </div>
                   </div>
@@ -686,7 +698,7 @@ function ScrollToBottom() {
   return (
     !isAtBottom && (
       <button
-        className="absolute z-50 top-[0%] translate-y-[-100%] text-4xl rounded-lg left-[50%] translate-x-[-50%] px-1.5 py-0.5 flex items-center gap-2 bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor text-bolt-elements-textPrimary text-sm"
+        className="absolute left-[50%] top-[0%] z-50 flex max-w-[calc(100%-1rem)] translate-x-[-50%] translate-y-[-100%] flex-wrap items-center justify-center gap-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-3 px-2 py-1 text-center text-sm text-bolt-elements-textPrimary"
         onClick={() => scrollToBottom()}
       >
         Go to last message

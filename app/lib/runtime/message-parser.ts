@@ -1,6 +1,16 @@
-import type { ActionType, BoltAction, BoltActionData, FileAction, ShellAction, SupabaseAction } from '~/types/actions';
+import type {
+  ActionType,
+  BoltAction,
+  BoltActionData,
+  BuildAction,
+  FileAction,
+  ShellAction,
+  StartAction,
+  SupabaseAction,
+} from '~/types/actions';
 import type { BoltArtifactData } from '~/types/artifact';
 import { createScopedLogger } from '~/utils/logger';
+import { evaluateActionExecutionPolicy, getActionCommand } from '~/utils/shell';
 import { unreachable } from '~/utils/unreachable';
 
 const ARTIFACT_TAG_OPEN = '<boltArtifact';
@@ -121,6 +131,7 @@ export class StreamingMessageParser {
             }
 
             currentAction.content = content;
+            const finalizedAction = this.#finalizeAction(currentAction as BoltAction);
 
             this._options.callbacks?.onActionClose?.({
               artifactId: currentArtifact.id,
@@ -133,7 +144,7 @@ export class StreamingMessageParser {
                */
               actionId: String(state.actionId - 1),
 
-              action: currentAction as BoltAction,
+              action: finalizedAction,
             });
 
             state.insideAction = false;
@@ -321,11 +332,23 @@ export class StreamingMessageParser {
       }
 
       (actionAttributes as FileAction).filePath = filePath;
-    } else if (!['shell', 'start'].includes(actionType)) {
+    } else if (!['shell', 'start', 'build'].includes(actionType)) {
       logger.warn(`Unknown action type '${actionType}'`);
     }
 
-    return actionAttributes as FileAction | ShellAction;
+    return actionAttributes as FileAction | ShellAction | StartAction | BuildAction | SupabaseAction;
+  }
+
+  #finalizeAction(action: BoltAction) {
+    if (action.type === 'build') {
+      action.content = getActionCommand(action);
+    }
+
+    if (action.type === 'shell' || action.type === 'start' || action.type === 'build') {
+      action.executionPolicy = evaluateActionExecutionPolicy(action);
+    }
+
+    return action;
   }
 
   #extractAttribute(tag: string, attributeName: string): string | undefined {

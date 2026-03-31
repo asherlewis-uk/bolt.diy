@@ -1,8 +1,255 @@
 import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
+import type { BoltAction, CommandActionType, CommandExecutionPolicy } from '~/types/actions';
 import type { ITerminal } from '~/types/terminal';
 import { withResolvers } from './promises';
 import { atom } from 'nanostores';
 import { expoUrlAtom } from '~/lib/stores/qrCodeStore';
+
+const COMMAND_SEPARATOR = /\s*&&\s*/;
+const UNSUPPORTED_COMMAND_OPERATOR_PATTERNS = [
+  /\|\|/,
+  /;/,
+  /\r|\n/,
+  /\s\|\s/,
+  />/,
+  /</,
+  /`/,
+  /\$\(/,
+];
+const FILE_SYSTEM_MUTATION_PATTERN = /^(rm|rmdir|del|erase|mkdir|cp|mv|touch|chmod|chown)\b/i;
+const PRIVILEGED_COMMAND_PATTERN = /^(powershell|cmd|bash|sh|git|curl|wget|node|python|python3)\b/i;
+const READ_ONLY_COMMAND_PATTERN = /^(pwd|ls|cat|head|tail|which|env|ps)\b(?:\s+.*)?$/i;
+const SHELL_INSTALL_PATTERNS = [
+  /^npm\s+(install|ci)(?:\s+--[\w-]+(?:=[^\s]+)?)*$/i,
+  /^pnpm\s+(install|i)(?:\s+--[\w-]+(?:=[^\s]+)?)*$/i,
+  /^yarn\s+install(?:\s+--[\w-]+(?:=[^\s]+)?)*$/i,
+  /^bun\s+install(?:\s+--[\w-]+(?:=[^\s]+)?)*$/i,
+];
+const CHECK_COMMAND_PATTERNS = [
+  /^npm\s+run\s+(build|test|lint|typecheck|check)\b(?:\s+--\s+.*)?$/i,
+  /^npm\s+test\b(?:\s+--\s+.*)?$/i,
+  /^pnpm(?:\s+run)?\s+(build|test|lint|typecheck|check)\b(?:\s+--\s+.*)?$/i,
+  /^yarn\s+(build|test|lint|typecheck|check)\b(?:\s+--\s+.*)?$/i,
+  /^bun\s+run\s+(build|test|lint|typecheck|check)\b(?:\s+--\s+.*)?$/i,
+];
+const START_COMMAND_PATTERNS = [
+  /^npm\s+run\s+(dev|start|preview)\b(?:\s+--\s+.*)?$/i,
+  /^pnpm(?:\s+run)?\s+(dev|start|preview)\b(?:\s+--\s+.*)?$/i,
+  /^yarn\s+(dev|start|preview)\b(?:\s+--\s+.*)?$/i,
+  /^bun\s+run\s+(dev|start|preview)\b(?:\s+--\s+.*)?$/i,
+  /^npx\s+(--yes\s+)?(vite|serve|servor|http-server|expo)\b(?:\s+.*)?$/i,
+];
+
+function allowCommand(
+  commandType: CommandActionType,
+  command: string,
+  normalizedCommand: string,
+  matchedRule: string,
+): CommandExecutionPolicy {
+  return {
+    verdict: 'allow',
+    commandType,
+    command,
+    normalizedCommand,
+    matchedRule,
+  };
+}
+
+function rejectCommand(
+  commandType: CommandActionType,
+  command: string,
+  normalizedCommand: string,
+  reason: string,
+  matchedRule: string,
+): CommandExecutionPolicy {
+  return {
+    verdict: 'reject',
+    commandType,
+    command,
+    normalizedCommand,
+    reason,
+    matchedRule,
+  };
+}
+
+function normalizeCommandSegment(segment: string) {
+  return segment.trim().replace(/\s+/g, ' ');
+}
+
+function getNormalizedSegments(command: string) {
+  return command
+    .split(COMMAND_SEPARATOR)
+    .map((segment) => normalizeCommandSegment(segment))
+    .filter(Boolean);
+}
+
+function matchesAnyPattern(command: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(command));
+}
+
+function evaluateCommandSegment(commandType: CommandActionType, segment: string): CommandExecutionPolicy {
+  if (!segment) {
+    return rejectCommand(commandType, segment, segment, 'Empty commands are not allowed.', 'empty-command');
+  }
+
+  if (FILE_SYSTEM_MUTATION_PATTERN.test(segment)) {
+    return rejectCommand(
+      commandType,
+      segment,
+      segment,
+      'File-system mutation commands must use file actions instead of shell execution.',
+      'filesystem-mutation',
+    );
+  }
+
+  if (PRIVILEGED_COMMAND_PATTERN.test(segment)) {
+    return rejectCommand(
+      commandType,
+      segment,
+      segment,
+      'Arbitrary interpreters, network tools, and privileged shells are not allowed in command actions.',
+      'privileged-command',
+    );
+  }
+
+  const isStartCommand = matchesAnyPattern(segment, START_COMMAND_PATTERNS);
+  const isCheckCommand = matchesAnyPattern(segment, CHECK_COMMAND_PATTERNS);
+
+  if (commandType === 'shell') {
+    if (isStartCommand) {
+      return rejectCommand(
+        commandType,
+        segment,
+        segment,
+        'Development servers must use start actions instead of shell actions.',
+        'shell-start-mismatch',
+      );
+    }
+
+    if (matchesAnyPattern(segment, SHELL_INSTALL_PATTERNS)) {
+      return allowCommand(commandType, segment, segment, 'package-install');
+    }
+
+    if (isCheckCommand) {
+      return allowCommand(commandType, segment, segment, 'project-check');
+    }
+
+    if (READ_ONLY_COMMAND_PATTERN.test(segment)) {
+      return allowCommand(commandType, segment, segment, 'read-only-diagnostic');
+    }
+
+    return rejectCommand(
+      commandType,
+      segment,
+      segment,
+      'Shell actions are limited to package installation, project checks, and read-only diagnostics.',
+      'shell-not-allowed',
+    );
+  }
+
+  if (commandType === 'start') {
+    if (matchesAnyPattern(segment, SHELL_INSTALL_PATTERNS) || isCheckCommand) {
+      return rejectCommand(
+        commandType,
+        segment,
+        segment,
+        'Build, test, lint, and install commands must not use start actions.',
+        'start-command-mismatch',
+      );
+    }
+
+    if (isStartCommand) {
+      return allowCommand(commandType, segment, segment, 'start-command');
+    }
+
+    return rejectCommand(
+      commandType,
+      segment,
+      segment,
+      'Start actions are limited to dev, start, or preview server commands.',
+      'start-not-allowed',
+    );
+  }
+
+  if (commandType === 'build') {
+    if (segment.toLowerCase() === 'npm run build') {
+      return allowCommand(commandType, segment, segment, 'build-command');
+    }
+
+    return rejectCommand(
+      commandType,
+      segment,
+      segment,
+      'Build actions may only execute `npm run build`.',
+      'build-not-allowed',
+    );
+  }
+
+  return rejectCommand(commandType, segment, segment, 'Command type is not supported by the execution policy.', 'unknown');
+}
+
+export function getCommandActionType(action: Pick<BoltAction, 'type'>): CommandActionType | undefined {
+  if (action.type === 'shell' || action.type === 'start' || action.type === 'build') {
+    return action.type;
+  }
+
+  return undefined;
+}
+
+export function getActionCommand(action: Pick<BoltAction, 'type' | 'content'>): string {
+  if (action.type === 'build') {
+    const command = action.content.trim();
+    return command || 'npm run build';
+  }
+
+  return action.content.trim();
+}
+
+export function evaluateActionExecutionPolicy(
+  action: Pick<BoltAction, 'type' | 'content'>,
+): CommandExecutionPolicy | undefined {
+  const commandType = getCommandActionType(action);
+
+  if (!commandType) {
+    return undefined;
+  }
+
+  const command = getActionCommand(action);
+
+  if (!command) {
+    return rejectCommand(commandType, command, command, 'Commands must not be empty.', 'empty-command');
+  }
+
+  if (UNSUPPORTED_COMMAND_OPERATOR_PATTERNS.some((pattern) => pattern.test(command))) {
+    return rejectCommand(
+      commandType,
+      command,
+      normalizeCommandSegment(command),
+      'Command chaining is limited to `&&`; pipes, redirects, subshells, and multiline commands are blocked.',
+      'unsupported-operator',
+    );
+  }
+
+  const normalizedSegments = getNormalizedSegments(command);
+
+  if (normalizedSegments.length === 0) {
+    return rejectCommand(commandType, command, command, 'Commands must not be empty.', 'empty-command');
+  }
+
+  const decisions = normalizedSegments.map((segment) => evaluateCommandSegment(commandType, segment));
+  const rejectedDecision = decisions.find((decision) => decision.verdict === 'reject');
+  const normalizedCommand = normalizedSegments.join(' && ');
+
+  if (rejectedDecision) {
+    return {
+      ...rejectedDecision,
+      command,
+      normalizedCommand,
+    };
+  }
+
+  return allowCommand(commandType, command, normalizedCommand, decisions.map((decision) => decision.matchedRule).join(','));
+}
 
 export async function newShellProcess(webcontainer: WebContainer, terminal: ITerminal) {
   const args: string[] = [];

@@ -1,9 +1,20 @@
 import type { Change } from 'diff';
 
-export type ActionType = 'file' | 'shell' | 'supabase';
+export type CommandActionType = 'shell' | 'start' | 'build';
+export type ActionType = 'file' | CommandActionType | 'supabase';
+
+export interface CommandExecutionPolicy {
+  verdict: 'allow' | 'reject';
+  commandType: CommandActionType;
+  command: string;
+  normalizedCommand: string;
+  matchedRule?: string;
+  reason?: string;
+}
 
 export interface BaseAction {
   content: string;
+  executionPolicy?: CommandExecutionPolicy;
 }
 
 export interface FileAction extends BaseAction {
@@ -39,7 +50,7 @@ export interface ActionAlert {
   title: string;
   description: string;
   content: string;
-  source?: 'terminal' | 'preview'; // Add source to differentiate between terminal and preview errors
+  source?: 'terminal' | 'preview' | 'policy';
 }
 
 export interface SupabaseAlert {

@@ -70,3 +70,13 @@ body {
   // Firefox support for inverted colors
   scrollbar-color: color-mix(in srgb, var(--bolt-elements-textPrimary), transparent 50%) transparent;
 }
+
+.mobile-safe-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
